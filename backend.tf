@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket       = "oleksii-nosov-terraform-state"
-    key          = "lesson-5/terraform.tfstate"
+    key          = "lesson-7/terraform.tfstate"
     region       = "us-west-2"
     use_lockfile = true
     encrypt      = true

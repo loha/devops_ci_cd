@@ -1,6 +1,6 @@
-# Lesson 5 — Terraform AWS Infrastructure
+# Lesson 7 — EKS + ECR + Helm
 
-Terraform-проект для розгортання базової інфраструктури на AWS: S3 + DynamoDB для зберігання стейтів, VPC з публічними та приватними підмережами, ECR-репозиторій для Docker-образів.
+Terraform-проект для розгортання інфраструктури на AWS: S3 + DynamoDB для зберігання стейтів, VPC з публічними та приватними підмережами, ECR-репозиторій для Docker-образів, EKS-кластер Kubernetes. Django-застосунок розгортається у кластері за допомогою Helm-чарта `charts/django-app`.
 
 ## Структура проєкту
 
@@ -147,3 +147,77 @@ terraform destroy
 | `image_tag_mutability` | Мутабельність тегів (`MUTABLE`/`IMMUTABLE`) | `MUTABLE` |
 
 Вихідні дані: `repository_url`, `repository_arn`, `repository_name`, `registry_id`
+
+---
+
+### eks
+
+Створює кластер Kubernetes (EKS) у вже існуючому VPC разом з керованою групою вузлів (managed node group).
+
+Що створюється:
+- `aws_iam_role` + `aws_iam_role_policy_attachment` — роль і політики для control plane кластера (`AmazonEKSClusterPolicy`)
+- `aws_eks_cluster` — сам кластер, розгорнутий у приватних і публічних підмережах VPC
+- `aws_iam_role` + `aws_iam_role_policy_attachment` — роль і політики для робочих вузлів (`AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy`, `AmazonEC2ContainerRegistryReadOnly`)
+- `aws_eks_node_group` — керована група вузлів у приватних підмережах
+
+Вхідні змінні:
+| Змінна | Опис | За замовчуванням |
+|--------|------|-----------------|
+| `cluster_name` | Назва EKS-кластера | — |
+| `cluster_version` | Версія Kubernetes | `1.29` |
+| `vpc_id` | ID існуючого VPC | — |
+| `private_subnet_ids` | Приватні підмережі для вузлів | — |
+| `public_subnet_ids` | Публічні підмережі для control plane | — |
+| `node_instance_types` | Типи інстансів для вузлів | `["t3.medium"]` |
+| `node_desired_size` / `node_min_size` / `node_max_size` | Розмір групи вузлів | `2` / `2` / `4` |
+
+Вихідні дані: `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data`, `cluster_arn`, `node_group_arn`
+
+---
+
+## Доступ до кластера через kubectl
+
+```bash
+aws eks update-kubeconfig --region us-west-2 --name lesson-7-eks
+kubectl get nodes
+```
+
+## Завантаження Docker-образу Django в ECR
+
+```bash
+aws ecr get-login-password --region us-west-2 \
+  | docker login --username AWS --password-stdin <account_id>.dkr.ecr.us-west-2.amazonaws.com
+
+docker build -t lesson-7-ecr .
+docker tag lesson-7-ecr:latest <account_id>.dkr.ecr.us-west-2.amazonaws.com/lesson-7-ecr:latest
+docker push <account_id>.dkr.ecr.us-west-2.amazonaws.com/lesson-7-ecr:latest
+```
+
+## Helm-чарт `charts/django-app`
+
+Структура:
+- `templates/deployment.yaml` — Deployment з образом з ECR, env-змінні підключені через `envFrom` з ConfigMap
+- `templates/service.yaml` — Service типу `LoadBalancer`
+- `templates/hpa.yaml` — HorizontalPodAutoscaler (2–6 подів, ціль — 70% CPU)
+- `templates/configmap.yaml` — ConfigMap зі змінними середовища Django/Postgres (з `.env.example` теми 4)
+- `templates/ingress.yaml` — опціональний Ingress з підтримкою TLS через cert-manager (`ingress.enabled: true` у `values.yaml`)
+- `values.yaml` — параметри образу, сервісу, autoscaler, ConfigMap і Ingress
+
+Встановлення:
+
+```bash
+helm upgrade --install django-app ./charts/django-app \
+  --set image.repository=<account_id>.dkr.ecr.us-west-2.amazonaws.com/lesson-7-ecr \
+  --set image.tag=latest
+```
+
+Увімкнення Ingress з TLS (потребує попередньо встановлених nginx-ingress та cert-manager у кластері):
+
+```bash
+helm upgrade --install django-app ./charts/django-app \
+  --set ingress.enabled=true \
+  --set ingress.host=yourdomain.com \
+  --set ingress.className=nginx \
+  --set ingress.tls=true \
+  --set ingress.clusterIssuer=letsencrypt-prod
+```
