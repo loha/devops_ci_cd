@@ -1,0 +1,13 @@
+{{- if .Values.repository.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.repository.name }}
+  namespace: {{ .Values.application.namespace }}
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: {{ .Values.repository.type | quote }}
+  url: {{ .Values.repository.url | quote }}
+{{- end }}

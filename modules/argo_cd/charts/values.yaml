@@ -1,0 +1,19 @@
+# Argo CD Application that tracks the Django Helm chart in Git.
+application:
+  name: django-app
+  # Namespace where the Argo CD control-plane objects live.
+  namespace: argocd
+  # Namespace inside the cluster where the app is deployed.
+  destinationNamespace: default
+  project: default
+  # Git path + revision that Argo CD reconciles.
+  targetRevision: main
+  path: charts/django-app
+  imageRepository: ""
+
+# Repository the Application points at (and registers with Argo CD).
+repository:
+  enabled: true
+  url: ""
+  name: django-app-repo
+  type: git

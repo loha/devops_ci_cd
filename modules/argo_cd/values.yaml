@@ -1,0 +1,28 @@
+## Argo CD Helm chart values
+global:
+  domain: argocd.example.com
+
+configs:
+  params:
+    # Serve the API server over HTTP so a LoadBalancer/Ingress can terminate TLS.
+    server.insecure: true
+
+server:
+  service:
+    type: ${service_type}
+
+# Keep the footprint small for a lesson cluster.
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 1
+
+applicationSet:
+  replicas: 1
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false

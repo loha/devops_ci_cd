@@ -47,3 +47,44 @@ output "eks_cluster_endpoint" {
   description = "Endpoint of the EKS cluster API server"
   value       = module.eks.cluster_endpoint
 }
+
+# ---------------------------------------------------------------------------
+# Jenkins
+# ---------------------------------------------------------------------------
+output "jenkins_namespace" {
+  description = "Namespace where Jenkins is installed"
+  value       = module.jenkins.namespace
+}
+
+output "jenkins_url_command" {
+  description = "Command to fetch the Jenkins LoadBalancer URL"
+  value       = module.jenkins.get_url_command
+}
+
+output "jenkins_admin_password_command" {
+  description = "Command to fetch the Jenkins admin password"
+  value       = module.jenkins.get_admin_password_command
+}
+
+# ---------------------------------------------------------------------------
+# Argo CD
+# ---------------------------------------------------------------------------
+output "argocd_namespace" {
+  description = "Namespace where Argo CD is installed"
+  value       = module.argo_cd.namespace
+}
+
+output "argocd_application_name" {
+  description = "Name of the Argo CD Application"
+  value       = module.argo_cd.application_name
+}
+
+output "argocd_url_command" {
+  description = "Command to fetch the Argo CD server LoadBalancer URL"
+  value       = module.argo_cd.get_url_command
+}
+
+output "argocd_admin_password_command" {
+  description = "Command to fetch the initial Argo CD admin password"
+  value       = module.argo_cd.get_admin_password_command
+}

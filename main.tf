@@ -6,11 +6,42 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.27"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
 provider "aws" {
-  region = "us-west-2"
+  region = var.aws_region
+}
+
+# Auth token for the EKS cluster, used by the Kubernetes/Helm providers.
+data "aws_eks_cluster_auth" "main" {
+  name = module.eks.cluster_name
+}
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.main.token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    token                  = data.aws_eks_cluster_auth.main.token
+  }
 }
 
 module "s3_backend" {
@@ -41,4 +72,31 @@ module "eks" {
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnet_ids
   public_subnet_ids  = module.vpc.public_subnet_ids
+}
+
+module "jenkins" {
+  source         = "./modules/jenkins"
+  namespace      = "jenkins"
+  service_type   = "LoadBalancer"
+  admin_user     = "admin"
+  admin_password = var.jenkins_admin_password
+  storage_class  = "gp2"
+  ecr_registry   = split("/", module.ecr.repository_url)[0]
+  aws_region     = var.aws_region
+
+  depends_on = [module.eks]
+}
+
+module "argo_cd" {
+  source                = "./modules/argo_cd"
+  namespace             = "argocd"
+  service_type          = "LoadBalancer"
+  git_repo_url          = var.git_repo_url
+  git_target_revision   = "main"
+  chart_path            = "charts/django-app"
+  app_name              = "django-app"
+  destination_namespace = "default"
+  image_repository      = module.ecr.repository_url
+
+  depends_on = [module.eks]
 }
